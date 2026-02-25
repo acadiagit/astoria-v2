@@ -1,0 +1,37 @@
+# Astoria v2 — Development overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Adds hot-reloading, debug mode, and uses localhost instead of domain.
+
+services:
+  backend:
+    build: ./backend
+    container_name: astoria-backend-dev
+    env_file: .env
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app:ro  # hot-reload: mount source code
+      - model_cache:/app/models
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: astoria-caddy-dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - ./frontend/dist:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
+  model_cache:

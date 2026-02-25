@@ -1,0 +1,37 @@
+# Astoria v2 — Caddy Configuration
+#
+# Replace YOUR_DOMAIN with your actual domain (e.g., astoria.acadiagit.com)
+# Caddy automatically provisions HTTPS via Let's Encrypt.
+#
+# For local development without a domain, use:
+#   :80 {
+#     ...
+#   }
+
+YOUR_DOMAIN {
+    # API requests → FastAPI backend
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # Everything else → React SPA
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+
+    # Logging
+    log {
+        output stdout
+        format json
+    }
+}

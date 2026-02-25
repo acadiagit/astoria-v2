@@ -1,0 +1,76 @@
+# Astoria v2 — CI/CD Pipeline
+# Triggers on push to main: builds, tests, and deploys to GCP VM.
+#
+# Required GitHub Secrets:
+#   GCP_VM_HOST        — VM's static IP or hostname
+#   GCP_VM_USER        — SSH username on the VM
+#   GCP_SSH_KEY        — Private SSH key for the VM
+#   SUPABASE_URL       — For running tests
+#   SUPABASE_ANON_KEY  — For running tests
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run backend tests
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: "test-key"
+          SUPABASE_JWT_SECRET: "test-secret"
+        run: |
+          cd backend
+          python -m pytest tests/ -v
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install and build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+        env:
+          VITE_SUPABASE_URL: "https://placeholder.supabase.co"
+          VITE_SUPABASE_ANON_KEY: "placeholder"
+
+  deploy:
+    name: Deploy to GCP
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.GCP_VM_HOST }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            cd ~/astoria-v2
+            ./scripts/deploy.sh

@@ -1,0 +1,46 @@
+# Astoria v2 — Docker Compose
+# Usage:
+#   docker compose up -d          # start all services
+#   docker compose logs -f        # follow logs
+#   docker compose down           # stop all services
+#   docker compose up -d --build  # rebuild and restart
+
+services:
+  # --- FastAPI Backend ---
+  backend:
+    build: ./backend
+    container_name: astoria-backend
+    env_file: .env
+    environment:
+      - ENVIRONMENT=production
+    ports:
+      - "8000:8000"
+    volumes:
+      - model_cache:/app/models  # cache embedding models between restarts
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --- Caddy Reverse Proxy (HTTPS + static file serving) ---
+  caddy:
+    image: caddy:2-alpine
+    container_name: astoria-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./frontend/dist:/srv:ro    # built React app
+      - caddy_data:/data           # TLS certificates
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
+  model_cache:
