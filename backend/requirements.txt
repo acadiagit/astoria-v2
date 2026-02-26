@@ -7,38 +7,20 @@ uvicorn[standard]==0.34.0
 gunicorn==23.0.0
 python-multipart==0.0.18
 
-# Supabase
-supabase==2.11.0
-postgrest-py==0.18.0
+# Supabase (brings its own postgrest dependency)
+supabase>=2.0.0
 
 # Auth
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-httpx==0.28.1
-
-# RAG Framework
-llama-index==0.12.3
-llama-index-vector-stores-postgres==0.4.1
-llama-index-embeddings-huggingface==0.5.2
-llama-index-llms-anthropic==0.7.1
-llama-index-llms-gemini==0.5.1
-llama-index-llms-groq==0.4.1
-
-# Embedding model
-sentence-transformers==3.4.1
-torch==2.5.1
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+httpx>=0.27.0
 
 # Data processing
-pydantic==2.10.3
-pydantic-settings==2.7.0
-python-dotenv==1.0.1
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
 
 # Utilities
-structlog==24.4.0
-tenacity==9.0.0
-aiofiles==24.1.0
-
-# Testing
-pytest==8.3.4
-pytest-asyncio==0.25.0
-httpx==0.28.1
+structlog>=24.0.0
+tenacity>=9.0.0
+aiofiles>=24.0.0
