@@ -3,6 +3,7 @@ Astoria v2 — JWT authentication middleware.
 
 Validates Supabase-issued JWTs on protected endpoints.
 Extracts user ID and role from the token.
+Supports both HS256 (legacy) and RS256/ES256 (new Supabase projects).
 """
 
 from fastapi import Depends, HTTPException, status
@@ -10,6 +11,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from app.core.config import get_settings
+import httpx
+import functools
 
 security = HTTPBearer()
 
@@ -21,9 +24,24 @@ class AuthUser(BaseModel):
     role: str = "researcher"  # "researcher" | "admin"
 
 
+@functools.lru_cache()
+def _fetch_jwks(supabase_url: str) -> dict:
+    """Fetch JWKS (public keys) from Supabase for asymmetric JWT verification."""
+    jwks_url = f"{supabase_url}/auth/v1/.well-known/jwks.json"
+    response = httpx.get(jwks_url, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
+
 def decode_jwt(token: str) -> dict:
-    """Decode and validate a Supabase JWT."""
+    """Decode and validate a Supabase JWT.
+
+    Tries HS256 with the legacy secret first, then falls back
+    to fetching JWKS for ES256/RS256 verification.
+    """
     settings = get_settings()
+
+    # Try HS256 with legacy JWT secret first
     try:
         payload = jwt.decode(
             token,
@@ -32,7 +50,34 @@ def decode_jwt(token: str) -> dict:
             audience="authenticated",
         )
         return payload
-    except JWTError as e:
+    except JWTError:
+        pass
+
+    # Fall back to JWKS-based verification (ES256/RS256)
+    try:
+        # Peek at the token header to get the algorithm and key ID
+        unverified_header = jwt.get_unverified_header(token)
+        alg = unverified_header.get("alg", "ES256")
+        kid = unverified_header.get("kid")
+
+        jwks = _fetch_jwks(settings.supabase_url)
+        key = None
+        for k in jwks.get("keys", []):
+            if k.get("kid") == kid:
+                key = k
+                break
+
+        if not key:
+            raise JWTError("No matching key found in JWKS")
+
+        payload = jwt.decode(
+            token,
+            key,
+            algorithms=[alg],
+            audience="authenticated",
+        )
+        return payload
+    except (JWTError, httpx.HTTPError) as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid or expired token: {e}",
