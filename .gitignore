@@ -27,7 +27,7 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
-# Models cache
-models/
+# Models cache (top-level only, not app/models/)
+/models/
 *.bin
 *.onnx
