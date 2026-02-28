@@ -2,15 +2,115 @@
 Astoria v2 — Query endpoints.
 
 Main entry point for natural language queries against the maritime database.
-Phase 1: Scaffold with placeholder logic.
-Phase 2: Full RAG pipeline integration.
+Full RAG pipeline: classify → embed → retrieve → (optional SQL) → synthesize.
 """
 
-from fastapi import APIRouter, Depends
+import time
+import structlog
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from app.middleware.auth import AuthUser, get_current_user
-from app.models.schemas import QueryRequest, QueryResponse, QueryComplexity
+from app.models.schemas import (
+    QueryRequest,
+    QueryResponse,
+    QueryComplexity,
+    SourceCitation,
+)
+from app.services.llm_router import classify_query, generate_answer
+from app.services.retrieval import search_chunks
+from app.services.nl2sql import generate_sql, execute_sql
+from app.services.embedding import is_loaded as embedding_loaded
+from app.core.supabase import get_supabase_admin
+
+logger = structlog.get_logger()
 
 router = APIRouter(prefix="/query", tags=["query"])
+
+
+# ── Prompt Templates ──────────────────────────────────────────
+
+SYNTHESIS_SYSTEM = """You are Astoria, a maritime history research assistant.
+You answer questions about historical ships, voyages, ports, crew, and cargo
+using the provided context from a curated maritime database.
+
+Rules:
+1. Base your answer ONLY on the provided context. If the context doesn't
+   contain enough information, say so honestly.
+2. Cite your sources by referencing document titles in [brackets].
+3. Be precise with dates, numbers, and proper nouns.
+4. Write in clear, scholarly prose — not bullet points.
+5. If SQL results are provided, incorporate the data naturally into your narrative.
+6. Keep answers concise but thorough (2-4 paragraphs for complex questions)."""
+
+SYNTHESIS_USER = """Question: {question}
+
+{context_section}
+
+{sql_section}
+
+Please provide a well-sourced answer to the question above."""
+
+
+def _build_context_section(sources: list[SourceCitation]) -> str:
+    """Format retrieved chunks into a context block for the LLM."""
+    if not sources:
+        return "Retrieved Context: No relevant documents found."
+
+    parts = ["Retrieved Context:"]
+    for i, src in enumerate(sources, 1):
+        parts.append(
+            f"\n[{i}] Document: {src.document_title} "
+            f"(relevance: {src.relevance_score:.2f})\n"
+            f"{src.chunk_text}"
+        )
+    return "\n".join(parts)
+
+
+def _build_sql_section(sql: str | None, rows: list[dict] | None) -> str:
+    """Format SQL results into a data block for the LLM."""
+    if not sql or not rows:
+        return "SQL Data: No SQL query was generated."
+
+    display_rows = rows[:20]
+    if not display_rows:
+        return f"SQL Query: {sql}\nSQL Data: Query returned no results."
+
+    header = " | ".join(display_rows[0].keys())
+    lines = [f"SQL Query: {sql}", f"SQL Results ({len(rows)} rows):", header]
+    lines.append("-" * len(header))
+    for row in display_rows:
+        lines.append(" | ".join(str(v) for v in row.values()))
+    if len(rows) > 20:
+        lines.append(f"... and {len(rows) - 20} more rows")
+
+    return "\n".join(lines)
+
+
+def _log_query(
+    user: AuthUser,
+    question: str,
+    complexity: QueryComplexity,
+    model_used: str,
+    sql: str | None,
+    answer: str,
+    sources: list[SourceCitation],
+    processing_ms: int,
+) -> None:
+    """Log the query to the query_log table for analytics."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("query_log").insert({
+            "user_id": user.id,
+            "question": question,
+            "complexity": complexity.value,
+            "model_used": model_used,
+            "sql_generated": sql,
+            "answer": answer[:5000],
+            "sources_used": [s.document_id for s in sources],
+            "processing_ms": processing_ms,
+        }).execute()
+    except Exception as e:
+        logger.warning("query_log_failed", error=str(e))
 
 
 @router.post("", response_model=QueryResponse)
@@ -20,26 +120,84 @@ async def submit_query(
 ):
     """Submit a natural language query about maritime history.
 
-    The system will:
-    1. Classify the query complexity (simple / complex / research).
-    2. Route to the appropriate LLM (Gemini Flash / Claude / Groq).
-    3. Generate SQL if applicable.
-    4. Retrieve relevant document chunks for context.
-    5. Synthesize a narrative answer with source citations.
+    Pipeline:
+    1. Classify query complexity (SIMPLE / COMPLEX / RESEARCH)
+    2. Retrieve relevant document chunks via semantic search
+    3. Generate + execute SQL if applicable (SIMPLE queries)
+    4. Synthesize narrative answer via routed LLM
+    5. Return answer with sources and metadata
     """
-    # Phase 1: Return a placeholder response confirming the pipeline shape.
-    # Phase 2 will integrate LlamaIndex, query routing, and LLM calls.
+    start = time.time()
 
-    return QueryResponse(
-        answer=(
-            f"[Phase 1 placeholder] Query received: '{request.question}'. "
-            f"Authenticated as {user.email}. "
-            f"The full RAG pipeline will be connected in Phase 2."
-        ),
-        sql_generated="SELECT 'phase 1 placeholder';" if request.include_sql else None,
-        data_preview=None,
-        sources=[],
-        complexity=QueryComplexity.SIMPLE,
-        model_used="placeholder",
-        processing_time_ms=0,
+    if not embedding_loaded():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Embedding model is still loading. Please try again in a moment.",
+        )
+
+    # 1. Classify complexity
+    complexity = classify_query(request.question)
+    logger.info("query_classified", question=request.question[:80], complexity=complexity.value)
+
+    # 2. Semantic search — retrieve relevant chunks
+    sources = search_chunks(request.question, threshold=0.5, limit=8)
+
+    # 3. Optional SQL generation + execution (for SIMPLE queries)
+    sql_query = None
+    sql_rows = None
+    if complexity == QueryComplexity.SIMPLE or request.include_sql:
+        sql_query = generate_sql(request.question)
+        if sql_query:
+            try:
+                sql_rows, _ = execute_sql(sql_query)
+            except Exception as e:
+                logger.warning("sql_exec_failed", error=str(e))
+                sql_rows = None
+
+    # 4. Build prompt and synthesize answer
+    context_section = _build_context_section(sources)
+    sql_section = _build_sql_section(sql_query, sql_rows)
+
+    user_prompt = SYNTHESIS_USER.format(
+        question=request.question,
+        context_section=context_section,
+        sql_section=sql_section,
     )
+
+    answer, model_used = generate_answer(complexity, SYNTHESIS_SYSTEM, user_prompt)
+
+    # 5. Build response
+    elapsed_ms = int((time.time() - start) * 1000)
+
+    response = QueryResponse(
+        answer=answer,
+        sql_generated=sql_query if request.include_sql else None,
+        data_preview=sql_rows[:10] if sql_rows else None,
+        sources=sources if request.include_sources else [],
+        complexity=complexity,
+        model_used=model_used,
+        processing_time_ms=elapsed_ms,
+    )
+
+    # 6. Log for analytics (non-blocking)
+    _log_query(
+        user=user,
+        question=request.question,
+        complexity=complexity,
+        model_used=model_used,
+        sql=sql_query,
+        answer=answer,
+        sources=sources,
+        processing_ms=elapsed_ms,
+    )
+
+    logger.info(
+        "query_completed",
+        complexity=complexity.value,
+        model=model_used,
+        sources=len(sources),
+        has_sql=sql_query is not None,
+        elapsed_ms=elapsed_ms,
+    )
+
+    return response

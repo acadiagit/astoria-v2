@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.logging import setup_logging, get_logger
 from app.api import health, query, explore, sources, ingest
+from app.services import embedding
 
 
 @asynccontextmanager
@@ -26,8 +27,8 @@ async def lifespan(app: FastAPI):
         environment=settings.environment,
     )
 
-    # TODO Phase 2: Load embedding model on startup
-    # TODO Phase 2: Initialize LlamaIndex components
+    # Load embedding model (E5-large-v2) — ~10s on first run, cached after
+    embedding.load_model()
 
     yield
 

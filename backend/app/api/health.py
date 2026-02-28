@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from app.core.config import get_settings
 from app.core.supabase import get_supabase_client
 from app.models.schemas import HealthResponse
+from app.services.embedding import is_loaded as embedding_is_loaded
 
 router = APIRouter(tags=["health"])
 
@@ -33,8 +34,7 @@ async def health_check():
     except ConnectionError:
         supabase_ok = False
 
-    # TODO: Check embedding model loaded (Phase 2)
-    embedding_ok = False
+    embedding_ok = embedding_is_loaded()
 
     return HealthResponse(
         status="ok" if supabase_ok else "degraded",
