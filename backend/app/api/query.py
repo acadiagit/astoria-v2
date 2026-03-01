@@ -201,3 +201,59 @@ async def submit_query(
     )
 
     return response
+
+
+# ── Demo / Test endpoint (no auth) ────────────────────────────
+
+@router.post("/test", response_model=QueryResponse)
+async def test_query(request: QueryRequest):
+    """Unauthenticated test endpoint for demo purposes.
+
+    Same pipeline as the main query endpoint, but no JWT required.
+    Remove this endpoint before production launch.
+    """
+    start = time.time()
+
+    if not embedding_loaded():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Embedding model is still loading. Please try again in a moment.",
+        )
+
+    complexity = classify_query(request.question)
+    logger.info("test_query", question=request.question[:80], complexity=complexity.value)
+
+    sources = search_chunks(request.question, threshold=0.4, limit=8)
+
+    sql_query = None
+    sql_rows = None
+    if complexity == QueryComplexity.SIMPLE or request.include_sql:
+        sql_query = generate_sql(request.question)
+        if sql_query:
+            try:
+                sql_rows, _ = execute_sql(sql_query)
+            except Exception as e:
+                logger.warning("sql_exec_failed", error=str(e))
+
+    context_section = _build_context_section(sources)
+    sql_section = _build_sql_section(sql_query, sql_rows)
+
+    user_prompt = SYNTHESIS_USER.format(
+        question=request.question,
+        context_section=context_section,
+        sql_section=sql_section,
+    )
+
+    answer, model_used = generate_answer(complexity, SYNTHESIS_SYSTEM, user_prompt)
+
+    elapsed_ms = int((time.time() - start) * 1000)
+
+    return QueryResponse(
+        answer=answer,
+        sql_generated=sql_query if request.include_sql else None,
+        data_preview=sql_rows[:10] if sql_rows else None,
+        sources=sources if request.include_sources else [],
+        complexity=complexity,
+        model_used=model_used,
+        processing_time_ms=elapsed_ms,
+    )
