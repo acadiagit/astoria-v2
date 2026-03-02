@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # --- CORS ---
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
+    # --- Database (direct connection for SQL execution) ---
+    database_url: str = ""
+
     # --- Rate Limiting ---
     rate_limit_per_minute: int = 30
 

@@ -145,7 +145,7 @@ async def submit_query(
     # 3. Optional SQL generation + execution (for SIMPLE queries)
     sql_query = None
     sql_rows = None
-    if complexity == QueryComplexity.SIMPLE or request.include_sql:
+    if complexity in (QueryComplexity.SIMPLE, QueryComplexity.COMPLEX) or request.include_sql:
         sql_query = generate_sql(request.question)
         if sql_query:
             try:
@@ -227,7 +227,7 @@ async def test_query(request: QueryRequest):
 
     sql_query = None
     sql_rows = None
-    if complexity == QueryComplexity.SIMPLE or request.include_sql:
+    if complexity in (QueryComplexity.SIMPLE, QueryComplexity.COMPLEX) or request.include_sql:
         sql_query = generate_sql(request.question)
         if sql_query:
             try:
