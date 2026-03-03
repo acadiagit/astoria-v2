@@ -2,10 +2,12 @@
  * Astoria v2 — Query Console page.
  *
  * Phase 2: Full query console with sample queries, expandable answers,
- * SQL preview, data table, and cited narrative.
+ * markdown-rendered responses, SQL preview, and cited narrative.
  */
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { apiPost } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 
@@ -34,6 +36,75 @@ const SAMPLE_QUERIES = {
     "Which ports produced the most vessels and what was their average tonnage?",
     "What captains are mentioned in the enrollment records for vessels built in Addison?",
   ],
+};
+
+// ── Markdown component classes ──────────────────────────────
+const markdownComponents = {
+  h1: ({ children, ...props }: any) => (
+    <h1 className="text-xl font-bold text-gray-900 mt-4 mb-2" {...props}>{children}</h1>
+  ),
+  h2: ({ children, ...props }: any) => (
+    <h2 className="text-lg font-bold text-gray-900 mt-3 mb-2" {...props}>{children}</h2>
+  ),
+  h3: ({ children, ...props }: any) => (
+    <h3 className="text-base font-semibold text-gray-800 mt-3 mb-1" {...props}>{children}</h3>
+  ),
+  p: ({ children, ...props }: any) => (
+    <p className="text-gray-800 leading-relaxed mb-3" {...props}>{children}</p>
+  ),
+  ul: ({ children, ...props }: any) => (
+    <ul className="list-disc list-inside space-y-1 mb-3 text-gray-800" {...props}>{children}</ul>
+  ),
+  ol: ({ children, ...props }: any) => (
+    <ol className="list-decimal list-inside space-y-1 mb-3 text-gray-800" {...props}>{children}</ol>
+  ),
+  li: ({ children, ...props }: any) => (
+    <li className="leading-relaxed" {...props}>{children}</li>
+  ),
+  strong: ({ children, ...props }: any) => (
+    <strong className="font-semibold text-gray-900" {...props}>{children}</strong>
+  ),
+  em: ({ children, ...props }: any) => (
+    <em className="italic text-gray-700" {...props}>{children}</em>
+  ),
+  table: ({ children, ...props }: any) => (
+    <div className="overflow-x-auto mb-4">
+      <table className="min-w-full border border-gray-200 rounded-lg text-sm" {...props}>
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...props }: any) => (
+    <thead className="bg-maritime-50 text-maritime-900" {...props}>{children}</thead>
+  ),
+  tbody: ({ children, ...props }: any) => (
+    <tbody className="divide-y divide-gray-100" {...props}>{children}</tbody>
+  ),
+  tr: ({ children, ...props }: any) => (
+    <tr className="hover:bg-gray-50" {...props}>{children}</tr>
+  ),
+  th: ({ children, ...props }: any) => (
+    <th className="px-3 py-2 text-left font-semibold border-b border-gray-200" {...props}>{children}</th>
+  ),
+  td: ({ children, ...props }: any) => (
+    <td className="px-3 py-2 text-gray-700" {...props}>{children}</td>
+  ),
+  blockquote: ({ children, ...props }: any) => (
+    <blockquote className="border-l-4 border-maritime-300 pl-4 py-1 my-3 text-gray-600 italic" {...props}>
+      {children}
+    </blockquote>
+  ),
+  code: ({ inline, children, ...props }: any) =>
+    inline ? (
+      <code className="bg-gray-100 text-maritime-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+        {children}
+      </code>
+    ) : (
+      <pre className="bg-gray-900 text-green-400 p-4 rounded-md text-sm overflow-x-auto mb-3">
+        <code {...props}>{children}</code>
+      </pre>
+    ),
+  hr: () => <hr className="my-4 border-gray-200" />,
 };
 
 export default function QueryPage() {
@@ -219,20 +290,22 @@ export default function QueryPage() {
         {/* Response */}
         {response && answerParts && (
           <div className="space-y-4">
-            {/* Summary answer */}
+            {/* Summary answer — rendered as markdown */}
             <div className="bg-white rounded-lg shadow p-6">
-              <p className="text-gray-900 leading-relaxed text-base">
-                {answerParts.summary}
-              </p>
+              <div className="prose-maritime">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {answerParts.summary}
+                </ReactMarkdown>
+              </div>
 
-              {/* Expandable detail */}
+              {/* Expandable detail — also rendered as markdown */}
               {answerParts.detail && (
                 <>
                   {expanded && (
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-gray-800 leading-relaxed text-sm whitespace-pre-line">
+                    <div className="mt-4 pt-4 border-t border-gray-100 prose-maritime">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                         {answerParts.detail}
-                      </p>
+                      </ReactMarkdown>
                     </div>
                   )}
                   <button
