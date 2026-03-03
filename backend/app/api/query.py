@@ -49,9 +49,16 @@ Rules:
    - Use headings (##) to organize longer responses into sections
 5. If SQL results are provided, present them in a clean Markdown table when
    there are multiple rows, and incorporate narrative context around the table.
-6. IMPORTANT: Start with a concise 2-3 sentence summary that directly answers
-   the question. Then add a separator "---" and provide the detailed analysis
-   below it. This lets readers get a quick answer first.
+6. CRITICAL FORMATTING RULE — You MUST structure every response in two parts:
+   PART 1: A concise 2-3 sentence summary that directly answers the question.
+   Then you MUST output a line containing only "---" (three hyphens, nothing else).
+   PART 2: The detailed analysis with tables, lists, and citations.
+   Example structure:
+   The Machias district produced 45 schooners between 1800 and 1850. **Addison** was the most prolific port with 18 vessels.
+   ---
+   ## Detailed Breakdown
+   | Port | Vessels | Avg Tonnage |
+   ...
 7. If asked about topics outside New England maritime history, politely note
    that your expertise is focused on New England maritime records and redirect
    to what you can help with."""

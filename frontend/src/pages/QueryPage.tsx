@@ -150,18 +150,29 @@ export default function QueryPage() {
 
   // Split answer into summary and detail at the "---" separator
   const splitAnswer = (answer: string) => {
-    const parts = answer.split(/\n---\n|\n---|\n—{3,}\n/);
-    if (parts.length >= 2) {
-      return { summary: parts[0].trim(), detail: parts.slice(1).join("\n").trim() };
+    // Try explicit --- separator first
+    const separatorMatch = answer.match(/\n\s*---\s*\n/);
+    if (separatorMatch && separatorMatch.index !== undefined) {
+      const summary = answer.slice(0, separatorMatch.index).trim();
+      const detail = answer.slice(separatorMatch.index + separatorMatch[0].length).trim();
+      if (summary && detail) {
+        return { summary, detail };
+      }
     }
-    // Fallback: first 2 sentences as summary
-    const sentences = answer.match(/[^.!?]+[.!?]+/g) || [answer];
-    if (sentences.length > 3) {
+
+    // Fallback: split at first double newline (paragraph break)
+    const paragraphs = answer.split(/\n\n+/);
+    if (paragraphs.length >= 3) {
+      // First 1-2 short paragraphs as summary
+      const summaryParas = paragraphs.slice(0, paragraphs[0].length < 120 ? 2 : 1);
+      const detailParas = paragraphs.slice(summaryParas.length);
       return {
-        summary: sentences.slice(0, 2).join("").trim(),
-        detail: sentences.slice(2).join("").trim(),
+        summary: summaryParas.join("\n\n").trim(),
+        detail: detailParas.join("\n\n").trim(),
       };
     }
+
+    // Final fallback: everything as summary, no expand button
     return { summary: answer, detail: "" };
   };
 
