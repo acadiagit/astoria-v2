@@ -1,15 +1,14 @@
 /**
  * Astoria v2 — Query Console page.
  *
- * Phase 2: Full query console with sample queries, expandable answers,
- * markdown-rendered responses, SQL preview, and cited narrative.
+ * Demo mode: uses /api/query/test (no JWT required).
+ * Markdown-rendered responses with sample queries and expandable answers.
  */
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { apiPost } from "../lib/api";
-import { useAuth } from "../hooks/useAuth";
+import type { GuestUser } from "../App";
 
 interface QueryResponse {
   answer: string;
@@ -18,6 +17,11 @@ interface QueryResponse {
   complexity: string;
   model_used: string;
   processing_time_ms: number;
+}
+
+interface QueryPageProps {
+  guest: GuestUser;
+  onLogout: () => void;
 }
 
 // ── Sample Queries ──────────────────────────────────────────
@@ -107,8 +111,7 @@ const markdownComponents = {
   hr: () => <hr className="my-4 border-gray-200" />,
 };
 
-export default function QueryPage() {
-  const { user, signOut } = useAuth();
+export default function QueryPage({ guest, onLogout }: QueryPageProps) {
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState<QueryResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -130,11 +133,23 @@ export default function QueryPage() {
     setShowSources(false);
 
     try {
-      const data = await apiPost<QueryResponse>("/query", {
-        question: queryText,
-        include_sql: true,
-        include_sources: true,
+      // Use the unauthenticated /api/query/test endpoint for demo
+      const res = await fetch("/api/query/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: queryText,
+          include_sql: true,
+          include_sources: true,
+        }),
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || `API error: ${res.status}`);
+      }
+
+      const data: QueryResponse = await res.json();
       setResponse(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Query failed");
@@ -163,7 +178,6 @@ export default function QueryPage() {
     // Fallback: split at first double newline (paragraph break)
     const paragraphs = answer.split(/\n\n+/);
     if (paragraphs.length >= 3) {
-      // First 1-2 short paragraphs as summary
       const summaryParas = paragraphs.slice(0, paragraphs[0].length < 120 ? 2 : 1);
       const detailParas = paragraphs.slice(summaryParas.length);
       return {
@@ -172,7 +186,6 @@ export default function QueryPage() {
       };
     }
 
-    // Final fallback: everything as summary, no expand button
     return { summary: answer, detail: "" };
   };
 
@@ -200,9 +213,12 @@ export default function QueryPage() {
             </div>
           </div>
           <div className="flex items-center gap-4 text-sm">
-            <span className="text-maritime-300">{user?.email}</span>
+            <span className="text-maritime-300">{guest.name}</span>
+            {guest.affiliation && (
+              <span className="text-maritime-500 text-xs">({guest.affiliation})</span>
+            )}
             <button
-              onClick={signOut}
+              onClick={onLogout}
               className="text-maritime-400 hover:text-white"
             >
               Sign Out

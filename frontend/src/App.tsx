@@ -1,13 +1,47 @@
 /**
- * Astoria v2 — App root with auth-gated routing.
+ * Astoria v2 — App root with lightweight guest auth for demo.
  */
 
-import { useAuth } from "./hooks/useAuth";
+import { useState, useEffect } from "react";
 import LoginPage from "./pages/LoginPage";
 import QueryPage from "./pages/QueryPage";
 
+export interface GuestUser {
+  name: string;
+  affiliation: string;
+  loginAt: string;
+}
+
 export default function App() {
-  const { isAuthenticated, loading } = useAuth();
+  const [guest, setGuest] = useState<GuestUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("astoria_guest");
+    if (stored) {
+      try {
+        setGuest(JSON.parse(stored));
+      } catch {
+        localStorage.removeItem("astoria_guest");
+      }
+    }
+    setLoading(false);
+  }, []);
+
+  const handleLogin = (name: string, affiliation: string) => {
+    const user: GuestUser = {
+      name,
+      affiliation,
+      loginAt: new Date().toISOString(),
+    };
+    localStorage.setItem("astoria_guest", JSON.stringify(user));
+    setGuest(user);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("astoria_guest");
+    setGuest(null);
+  };
 
   if (loading) {
     return (
@@ -17,10 +51,9 @@ export default function App() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginPage />;
+  if (!guest) {
+    return <LoginPage onLogin={handleLogin} />;
   }
 
-  // Phase 4 will add React Router for /explore, /sources, /admin
-  return <QueryPage />;
+  return <QueryPage guest={guest} onLogout={handleLogout} />;
 }
