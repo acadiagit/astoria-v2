@@ -1,8 +1,8 @@
 /**
  * Astoria v2 — Query Console page.
  *
- * Phase 1: Basic form that calls the placeholder endpoint.
- * Phase 2: Full query console with SQL preview, data table, and cited narrative.
+ * Phase 2: Full query console with sample queries, expandable answers,
+ * SQL preview, data table, and cited narrative.
  */
 
 import { useState } from "react";
@@ -18,24 +18,49 @@ interface QueryResponse {
   processing_time_ms: number;
 }
 
+// ── Sample Queries ──────────────────────────────────────────
+const SAMPLE_QUERIES = {
+  simple: [
+    "How many schooners were built in Addison?",
+    "What is the largest vessel by tonnage?",
+    "List all vessels built before 1820",
+    "Which builders constructed the most vessels?",
+    "How many vessels were built per decade?",
+  ],
+  complex: [
+    "Compare the average tonnage of schooners vs brigs",
+    "What vessels were associated with the port of Jonesport?",
+    "Show me the enrollment history for the ship ACARA",
+    "Which ports produced the most vessels and what was their average tonnage?",
+    "What captains are mentioned in the enrollment records for vessels built in Addison?",
+  ],
+};
+
 export default function QueryPage() {
   const { user, signOut } = useAuth();
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState<QueryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [showSql, setShowSql] = useState(false);
+  const [showSources, setShowSources] = useState(false);
 
-  const handleQuery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!question.trim()) return;
+  const handleQuery = async (q?: string) => {
+    const queryText = q || question;
+    if (!queryText.trim()) return;
 
+    if (q) setQuestion(q);
     setLoading(true);
     setError("");
     setResponse(null);
+    setExpanded(false);
+    setShowSql(false);
+    setShowSources(false);
 
     try {
       const data = await apiPost<QueryResponse>("/query", {
-        question,
+        question: queryText,
         include_sql: true,
         include_sources: true,
       });
@@ -47,13 +72,39 @@ export default function QueryPage() {
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleQuery();
+  };
+
+  // Split answer into summary and detail at the "---" separator
+  const splitAnswer = (answer: string) => {
+    const parts = answer.split(/\n---\n|\n---|\n—{3,}\n/);
+    if (parts.length >= 2) {
+      return { summary: parts[0].trim(), detail: parts.slice(1).join("\n").trim() };
+    }
+    // Fallback: first 2 sentences as summary
+    const sentences = answer.match(/[^.!?]+[.!?]+/g) || [answer];
+    if (sentences.length > 3) {
+      return {
+        summary: sentences.slice(0, 2).join("").trim(),
+        detail: sentences.slice(2).join("").trim(),
+      };
+    }
+    return { summary: answer, detail: "" };
+  };
+
+  const answerParts = response ? splitAnswer(response.answer) : null;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
       <nav className="bg-maritime-900 text-white px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold">Astoria</h1>
+            <h1 className="text-xl font-bold tracking-wide">
+              <span className="text-maritime-200">⚓</span> Astoria
+            </h1>
             <div className="flex gap-4 text-sm">
               <a href="/" className="text-maritime-200 hover:text-white font-medium">
                 Query
@@ -80,21 +131,21 @@ export default function QueryPage() {
 
       {/* Main content */}
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">Query Console</h2>
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Maritime Research Assistant</h2>
           <p className="text-gray-600 mt-1">
-            Ask questions about maritime history in natural language.
+            Ask questions about ships, voyages, ports, and maritime history of New England.
           </p>
         </div>
 
         {/* Query form */}
-        <form onSubmit={handleQuery} className="mb-8">
+        <form onSubmit={handleSubmit} className="mb-6">
           <div className="flex gap-3">
             <input
               type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder="e.g., What ships departed from Portland in 1850?"
+              placeholder="e.g., What ships departed from Machias in the 1850s?"
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maritime-500 focus:border-transparent text-lg"
             />
             <button
@@ -102,10 +153,61 @@ export default function QueryPage() {
               disabled={loading || !question.trim()}
               className="px-6 py-3 bg-maritime-700 text-white rounded-lg font-medium hover:bg-maritime-800 disabled:opacity-50 transition"
             >
-              {loading ? "Querying..." : "Ask"}
+              {loading ? "Searching..." : "Ask"}
             </button>
           </div>
         </form>
+
+        {/* Sample queries — show when no response */}
+        {!response && !loading && (
+          <div className="mb-8 space-y-5">
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Quick Lookups
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {SAMPLE_QUERIES.simple.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => handleQuery(q)}
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Research Questions
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {SAMPLE_QUERIES.complex.map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => handleQuery(q)}
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading indicator */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex items-center gap-3 text-maritime-700">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm font-medium">Searching maritime records...</span>
+            </div>
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -115,23 +217,73 @@ export default function QueryPage() {
         )}
 
         {/* Response */}
-        {response && (
-          <div className="space-y-6">
-            {/* Answer */}
+        {response && answerParts && (
+          <div className="space-y-4">
+            {/* Summary answer */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-2">
-                Answer
-              </h3>
-              <p className="text-gray-900 leading-relaxed">{response.answer}</p>
-              <div className="mt-4 flex gap-4 text-xs text-gray-400">
-                <span>Complexity: {response.complexity}</span>
-                <span>Model: {response.model_used}</span>
+              <p className="text-gray-900 leading-relaxed text-base">
+                {answerParts.summary}
+              </p>
+
+              {/* Expandable detail */}
+              {answerParts.detail && (
+                <>
+                  {expanded && (
+                    <div className="mt-4 pt-4 border-t border-gray-100">
+                      <p className="text-gray-800 leading-relaxed text-sm whitespace-pre-line">
+                        {answerParts.detail}
+                      </p>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="mt-3 text-sm text-maritime-600 hover:text-maritime-800 font-medium flex items-center gap-1"
+                  >
+                    {expanded ? (
+                      <>
+                        <span>Show less</span>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                        </svg>
+                      </>
+                    ) : (
+                      <>
+                        <span>Read full analysis</span>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+
+              {/* Metadata bar */}
+              <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap gap-4 text-xs text-gray-400">
+                <span className="capitalize">{response.complexity} query</span>
+                <span>{response.model_used}</span>
                 <span>{response.processing_time_ms}ms</span>
+                {response.sql_generated && (
+                  <button
+                    onClick={() => setShowSql(!showSql)}
+                    className="text-maritime-500 hover:text-maritime-700 font-medium"
+                  >
+                    {showSql ? "Hide SQL" : "View SQL"}
+                  </button>
+                )}
+                {response.sources.length > 0 && (
+                  <button
+                    onClick={() => setShowSources(!showSources)}
+                    className="text-maritime-500 hover:text-maritime-700 font-medium"
+                  >
+                    {showSources ? "Hide sources" : `View ${response.sources.length} sources`}
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* SQL */}
-            {response.sql_generated && (
+            {/* SQL — collapsible */}
+            {showSql && response.sql_generated && (
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-sm font-medium text-gray-500 mb-2">
                   Generated SQL
@@ -142,8 +294,8 @@ export default function QueryPage() {
               </div>
             )}
 
-            {/* Sources */}
-            {response.sources.length > 0 && (
+            {/* Sources — collapsible */}
+            {showSources && response.sources.length > 0 && (
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-sm font-medium text-gray-500 mb-3">
                   Sources ({response.sources.length})
@@ -157,7 +309,7 @@ export default function QueryPage() {
                       <p className="font-medium text-sm text-maritime-800">
                         {source.document_title}
                       </p>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-3">
                         {source.chunk_text}
                       </p>
                     </div>
@@ -165,6 +317,22 @@ export default function QueryPage() {
                 </div>
               </div>
             )}
+
+            {/* Ask another question */}
+            <div className="text-center pt-2">
+              <button
+                onClick={() => {
+                  setResponse(null);
+                  setQuestion("");
+                  setExpanded(false);
+                  setShowSql(false);
+                  setShowSources(false);
+                }}
+                className="text-sm text-gray-500 hover:text-maritime-700 font-medium"
+              >
+                Ask another question
+              </button>
+            </div>
           </div>
         )}
       </main>
