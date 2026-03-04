@@ -24,22 +24,40 @@ interface QueryPageProps {
   onLogout: () => void;
 }
 
-// ── Sample Queries ──────────────────────────────────────────
+// ── Sample Queries (English & 1800s French) ─────────────────
 const SAMPLE_QUERIES = {
-  simple: [
-    "How many schooners were built in Addison?",
-    "What is the largest vessel by tonnage?",
-    "List all vessels built before 1820",
-    "Which builders constructed the most vessels?",
-    "How many vessels were built per decade?",
-  ],
-  complex: [
-    "Compare the average tonnage of schooners vs brigs",
-    "What vessels were associated with the port of Jonesport?",
-    "Show me the enrollment history for the ship ACARA",
-    "Which ports produced the most vessels and what was their average tonnage?",
-    "What captains are mentioned in the enrollment records for vessels built in Addison?",
-  ],
+  simple: {
+    en: [
+      "How many schooners were built in Addison?",
+      "What is the largest vessel by tonnage?",
+      "List all vessels built before 1820",
+      "Which builders constructed the most vessels?",
+      "How many vessels were built per decade?",
+    ],
+    fr: [
+      "Combien de goélettes furent construites à Addison\u202F?",
+      "Quel est le plus grand navire par tonnage de jauge\u202F?",
+      "Énumérez les bâtiments construits avant l'an 1820",
+      "Quels maîtres-constructeurs ont bâti le plus de navires\u202F?",
+      "Combien de vaisseaux furent construits par décennie\u202F?",
+    ],
+  },
+  complex: {
+    en: [
+      "Compare the average tonnage of schooners vs brigs",
+      "What vessels were associated with the port of Jonesport?",
+      "Show me the enrollment history for the ship ACARA",
+      "Which ports produced the most vessels and what was their average tonnage?",
+      "What captains are mentioned in the enrollment records for vessels built in Addison?",
+    ],
+    fr: [
+      "Comparez le tonnage moyen des goélettes et des bricks",
+      "Quels navires étaient rattachés au port de Jonesport\u202F?",
+      "Montrez-moi l'historique d'immatriculation du navire ACARA",
+      "Quels ports ont produit le plus de bâtiments et quel était leur tonnage moyen\u202F?",
+      "Quels capitaines sont mentionnés dans les registres d'enrôlement des navires construits à Addison\u202F?",
+    ],
+  },
 };
 
 // ── Markdown component classes ──────────────────────────────
@@ -119,6 +137,7 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
   const [expanded, setExpanded] = useState(false);
   const [showSql, setShowSql] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [lang, setLang] = useState<"en" | "fr">("en");
 
   const handleQuery = async (q?: string) => {
     const queryText = q || question;
@@ -259,16 +278,42 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
         {/* Sample queries — show when no response */}
         {!response && !loading && (
           <div className="mb-8 space-y-5">
+            {/* Language toggle */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setLang("en")}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition ${
+                  lang === "en"
+                    ? "bg-maritime-700 text-white"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                English
+              </button>
+              <button
+                onClick={() => setLang("fr")}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition ${
+                  lang === "fr"
+                    ? "bg-maritime-700 text-white"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                Français (1800s)
+              </button>
+            </div>
+
             <div>
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Quick Lookups
+                {lang === "en" ? "Quick Lookups" : "Recherches Rapides"}
               </h3>
               <div className="flex flex-wrap gap-2">
-                {SAMPLE_QUERIES.simple.map((q) => (
+                {SAMPLE_QUERIES.simple[lang].map((q) => (
                   <button
                     key={q}
                     onClick={() => handleQuery(q)}
-                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm"
+                    className={`px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm ${
+                      lang === "fr" ? "italic" : ""
+                    }`}
                   >
                     {q}
                   </button>
@@ -277,14 +322,16 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
             </div>
             <div>
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Research Questions
+                {lang === "en" ? "Research Questions" : "Questions de Recherche"}
               </h3>
               <div className="flex flex-wrap gap-2">
-                {SAMPLE_QUERIES.complex.map((q) => (
+                {SAMPLE_QUERIES.complex[lang].map((q) => (
                   <button
                     key={q}
                     onClick={() => handleQuery(q)}
-                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm"
+                    className={`px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm ${
+                      lang === "fr" ? "italic" : ""
+                    }`}
                   >
                     {q}
                   </button>
