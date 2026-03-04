@@ -24,38 +24,38 @@ interface QueryPageProps {
   onLogout: () => void;
 }
 
-// ── Sample Queries (English & 1800s French) ─────────────────
+// ── Sample Queries (1800s English & 1800s French) ────────────
 const SAMPLE_QUERIES = {
   simple: {
     en: [
-      "How many schooners were built in Addison?",
-      "What is the largest vessel by tonnage?",
-      "List all vessels built before 1820",
-      "Which builders constructed the most vessels?",
-      "How many vessels were built per decade?",
+      "How many schooners were laid down in the yards at Addison?",
+      "Which vessel boasts the greatest registered tonnage?",
+      "Pray enumerate the craft built before the year 1820",
+      "Which master builders have launched the most vessels?",
+      "How many craft were put to sea each decade?",
     ],
     fr: [
-      "Combien de goélettes furent construites à Addison\u202F?",
-      "Quel est le plus grand navire par tonnage de jauge\u202F?",
-      "Énumérez les bâtiments construits avant l'an 1820",
-      "Quels maîtres-constructeurs ont bâti le plus de navires\u202F?",
-      "Combien de vaisseaux furent construits par décennie\u202F?",
+      "Combien de goélettes furent mises en chantier à Addison\u202F?",
+      "Quel bâtiment possède le plus fort tonnage de jauge\u202F?",
+      "Veuillez énumérer les navires construits avant l'an 1820",
+      "Quels maîtres-constructeurs ont lancé le plus de vaisseaux\u202F?",
+      "Combien de navires furent mis à la mer par décennie\u202F?",
     ],
   },
   complex: {
     en: [
-      "Compare the average tonnage of schooners vs brigs",
-      "What vessels were associated with the port of Jonesport?",
-      "Show me the enrollment history for the ship ACARA",
-      "Which ports produced the most vessels and what was their average tonnage?",
-      "What captains are mentioned in the enrollment records for vessels built in Addison?",
+      "Compare the mean tonnage of schooners against that of brigs",
+      "Which vessels were enrolled at the port of Jonesport?",
+      "Show me the full enrollment history of the vessel ACARA",
+      "Which ports have launched the most craft, and what was their mean tonnage?",
+      "What masters and captains appear in the enrollment ledgers for vessels built at Addison?",
     ],
     fr: [
-      "Comparez le tonnage moyen des goélettes et des bricks",
-      "Quels navires étaient rattachés au port de Jonesport\u202F?",
-      "Montrez-moi l'historique d'immatriculation du navire ACARA",
-      "Quels ports ont produit le plus de bâtiments et quel était leur tonnage moyen\u202F?",
-      "Quels capitaines sont mentionnés dans les registres d'enrôlement des navires construits à Addison\u202F?",
+      "Comparez le tonnage moyen des goélettes à celui des bricks",
+      "Quels navires étaient immatriculés au port de Jonesport\u202F?",
+      "Montrez-moi l'historique complet d'enrôlement du navire ACARA",
+      "Quels ports ont lancé le plus de bâtiments et quel était leur tonnage moyen\u202F?",
+      "Quels maîtres et capitaines figurent dans les registres d'enrôlement des navires construits à Addison\u202F?",
     ],
   },
 };
@@ -288,7 +288,7 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                 }`}
               >
-                English
+                English (1800s)
               </button>
               <button
                 onClick={() => setLang("fr")}
@@ -311,9 +311,7 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
                   <button
                     key={q}
                     onClick={() => handleQuery(q)}
-                    className={`px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm ${
-                      lang === "fr" ? "italic" : ""
-                    }`}
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm italic"
                   >
                     {q}
                   </button>
@@ -329,9 +327,7 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
                   <button
                     key={q}
                     onClick={() => handleQuery(q)}
-                    className={`px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm ${
-                      lang === "fr" ? "italic" : ""
-                    }`}
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm text-gray-700 hover:bg-maritime-50 hover:border-maritime-300 hover:text-maritime-800 transition shadow-sm italic"
                   >
                     {q}
                   </button>
