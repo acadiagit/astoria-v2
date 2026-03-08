@@ -78,7 +78,13 @@ Maritime Domain Knowledge:
 - Fractional ownership (e.g., "4/64 shares") represents the vessel ownership system
   where ships were divided into shares (commonly 1/16, 1/32, or 1/64 divisions).
 - "(same as previous)" for master or owners means the same person/group continued
-  from the prior enrollment — do not list these as separate entries, just note continuity."""
+  from the prior enrollment — do not list these as separate entries, just note continuity.
+- When "Career Profile" data is provided, build a comprehensive BIOGRAPHY of the person:
+  present their roles chronologically, note which vessels they captained/owned/built,
+  identify family connections, and describe their career arc across the maritime industry.
+- For FAMILY QUERIES (same last name), highlight the network: who was captain, who was
+  owner, who was builder, which vessels they shared, and what time period they were active.
+- When presenting person data, always use a table format for clarity."""
 
 SYNTHESIS_USER = """Question: {question}
 

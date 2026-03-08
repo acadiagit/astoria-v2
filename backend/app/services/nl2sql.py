@@ -86,6 +86,29 @@ VIEW: vessel_voyages (convenience view for voyage reconstruction)
   - vessel_name, departed_from, arrived_at, event_date, event_type, master, doc_number, document_id
   - Only includes events where previous_port IS NOT NULL
 
+TABLE: person_roles
+  - id (UUID, primary key)
+  - person_name (TEXT) — full name, e.g. 'John B. Chandler', 'William A. Nash'
+  - person_name_normalized (TEXT) — lowercase for matching
+  - last_name (TEXT) — extracted surname for family queries, e.g. 'Chandler', 'Nash'
+  - vessel_name (TEXT) — vessel name in Title Case
+  - role (TEXT) — 'master' (captain), 'owner', 'builder'
+  - ownership_share (TEXT) — e.g. '4/64' (owners only)
+  - residence (TEXT) — town of residence
+  - first_date (DATE) — earliest date in this role for this vessel
+  - last_date (DATE) — latest date in this role for this vessel
+  - event_count (INTEGER) — how many events with this person+vessel+role
+  - document_id (UUID, FK → documents.id)
+
+VIEW: captain_careers
+  - person_name, last_name, vessels_commanded, career_start, career_end, vessel_list (array)
+
+VIEW: builder_portfolios
+  - builder, last_name, vessels_built, vessel_list (array), first_build, last_build
+
+VIEW: family_vessel_connections
+  - family_name, person_a, role_a, person_b, role_b, vessel_name, first_date
+
 IMPORTANT NOTES about the data:
 - The raw_content field contains the FULL enrollment history — every time the
   vessel was enrolled, registered, or changed owners/masters, that record
@@ -249,14 +272,40 @@ A: SELECT (EXTRACT(YEAR FROM event_date)::int / 10 * 10)::text || 's' AS decade,
    ORDER BY EXTRACT(YEAR FROM event_date)::int / 10 * 10
 
 Q: Who were the most active captains?
-A: SELECT master, COUNT(DISTINCT vessel_name) AS vessels_captained,
-          COUNT(*) AS total_events
-   FROM vessel_events
-   WHERE master IS NOT NULL
-     AND master != '(same as previous)'
-   GROUP BY master
-   ORDER BY vessels_captained DESC
+A: SELECT person_name AS captain, vessels_commanded, career_start, career_end, vessel_list
+   FROM captain_careers
+   ORDER BY vessels_commanded DESC
    LIMIT 20
+
+Q: Show me the career of Captain Nelson Ingalls
+A: SELECT vessel_name, role, first_date, last_date, event_count
+   FROM person_roles
+   WHERE person_name_normalized ILIKE '%nelson ingalls%'
+   ORDER BY first_date
+
+Q: What vessels did the Sawyer family own or command?
+A: SELECT person_name, vessel_name, role, ownership_share, first_date, last_date
+   FROM person_roles
+   WHERE last_name = 'Sawyer'
+   ORDER BY person_name, first_date
+
+Q: Who built the most ships?
+A: SELECT builder, vessels_built, vessel_list, first_build, last_build
+   FROM builder_portfolios
+   ORDER BY vessels_built DESC
+   LIMIT 20
+
+Q: What family connections exist on the vessel Acara?
+A: SELECT family_name, person_a, role_a, person_b, role_b
+   FROM family_vessel_connections
+   WHERE vessel_name ILIKE '%Acara%'
+   ORDER BY family_name
+
+Q: Who were the owners of the schooner A. B. Perry?
+A: SELECT person_name, ownership_share, residence, first_date, last_date
+   FROM person_roles
+   WHERE vessel_name ILIKE '%A. B. Perry%' AND role = 'owner'
+   ORDER BY first_date
 """
 
 # ── System Prompt ────────────────────────────────────────────
