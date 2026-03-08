@@ -121,45 +121,25 @@ def search_chunks(
     vessel_name = _detect_vessel_name(question, supabase)
 
     if vessel_name:
-        # Filtered search: get ALL chunks for this vessel + standard search
+        # Vessel-specific search: ONLY get chunks for this vessel (no generic search)
+        # This prevents unrelated vessels from polluting results
         logger.info("filtered_search", vessel=vessel_name, limit=limit)
 
-        # Get vessel-specific chunks (higher limit to capture full history)
+        # Get vessel-specific chunks
         filtered_result = supabase.rpc(
             "match_chunks_filtered",
             {
                 "query_embedding": query_vector,
                 "filter_metadata": {"ship_name": vessel_name},
-                "match_threshold": 0.3,   # lower threshold for vessel-specific
-                "match_count": 20,         # more chunks for full history
+                "match_threshold": 0.2,   # low threshold — we want ALL chunks for this vessel
+                "match_count": 20,         # capture full history
             },
         ).execute()
 
-        # Also get standard semantic results (may include related vessels)
-        standard_result = supabase.rpc(
-            "match_chunks",
-            {
-                "query_embedding": query_vector,
-                "match_threshold": threshold,
-                "match_count": limit,
-            },
-        ).execute()
-
-        # Merge results, deduplicating by chunk ID
-        seen_ids = set()
-        all_chunks = []
-        for chunk in (filtered_result.data or []):
-            if chunk["id"] not in seen_ids:
-                seen_ids.add(chunk["id"])
-                all_chunks.append(chunk)
-        for chunk in (standard_result.data or []):
-            if chunk["id"] not in seen_ids:
-                seen_ids.add(chunk["id"])
-                all_chunks.append(chunk)
+        result_data = filtered_result.data or []
 
         # Sort by similarity
-        all_chunks.sort(key=lambda c: c["similarity"], reverse=True)
-        result_data = all_chunks
+        result_data.sort(key=lambda c: c["similarity"], reverse=True)
 
         # Fetch structured events
         events = _get_vessel_events(vessel_name, supabase)
@@ -210,19 +190,31 @@ def search_chunks(
 
     # 5. If we have structured events, append them as a synthetic citation
     if events:
-        event_lines = [f"=== Structured Events for {vessel_name} ==="]
+        # Resolve "(same as previous)" for master to show actual names
+        last_master = None
+        resolved_events = []
         for ev in events:
-            line = f"  {ev.get('event_date', '?')} | {ev['event_type']} at {ev.get('event_port', '?')}"
-            if ev.get('previous_port'):
-                line += f" (from {ev['previous_port']})"
-            if ev.get('master') and ev['master'] != '(same as previous)':
-                line += f" | Master: {ev['master']}"
-            if ev.get('owners_text') and ev['owners_text'] != '(same as previous)':
-                owners_short = ev['owners_text'][:100]
-                line += f" | Owners: {owners_short}"
-            if ev.get('notes'):
-                line += f" | Notes: {ev['notes']}"
-            event_lines.append(line)
+            master = ev.get('master')
+            if master and master != '(same as previous)':
+                last_master = master
+            elif master == '(same as previous)' and last_master:
+                master = last_master
+            resolved_events.append({**ev, 'master': master})
+
+        event_lines = [
+            f"=== Chronological Event History for {vessel_name} ===",
+            f"Total events: {len(resolved_events)}",
+            "",
+            "Date | Type | Port | From | Master",
+            "--- | --- | --- | --- | ---",
+        ]
+        for ev in resolved_events:
+            date = ev.get('event_date', '?') or '?'
+            etype = ev.get('event_type', '?')
+            port = ev.get('event_port', '?')
+            prev = ev.get('previous_port') or ''
+            master = ev.get('master') or ''
+            event_lines.append(f"{date} | {etype} | {port} | {prev} | {master}")
 
         event_text = "\n".join(event_lines)
 

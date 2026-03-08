@@ -258,13 +258,33 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
         {/* Query form */}
         <form onSubmit={handleSubmit} className="mb-6">
           <div className="flex gap-3">
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="e.g., What ships departed from Machias in the 1850s?"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maritime-500 focus:border-transparent text-lg"
-            />
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="e.g., What ships departed from Machias in the 1850s?"
+                className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maritime-500 focus:border-transparent text-lg"
+              />
+              {question.trim() && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuestion("");
+                    setResponse(null);
+                    setExpanded(false);
+                    setShowSql(false);
+                    setShowSources(false);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  title="Clear"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
             <button
               type="submit"
               disabled={loading || !question.trim()}
@@ -462,7 +482,7 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
             )}
 
             {/* Ask another question */}
-            <div className="text-center pt-2">
+            <div className="text-center pt-4">
               <button
                 onClick={() => {
                   setResponse(null);
@@ -471,9 +491,9 @@ export default function QueryPage({ guest, onLogout }: QueryPageProps) {
                   setShowSql(false);
                   setShowSources(false);
                 }}
-                className="text-sm text-gray-500 hover:text-maritime-700 font-medium"
+                className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition shadow-sm"
               >
-                Ask another question
+                ✦ Ask Another Question
               </button>
             </div>
           </div>
