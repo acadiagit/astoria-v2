@@ -64,15 +64,42 @@ TABLE: document_chunks
   - token_count (INTEGER)
   - embedding (vector(1024)) — E5-large-v2 embedding
 
+TABLE: vessel_events
+  - id (UUID, primary key)
+  - document_id (UUID, FK → documents.id)
+  - vessel_name (TEXT) — vessel name in Title Case, e.g. 'A. B. Perry', 'Alaska'
+  - event_type (TEXT) — 'enrolled' (domestic/coastal trade), 'registered' (foreign trade),
+                         'enrolled_temporary', 'registered_temporary'
+  - event_date (DATE) — when the event occurred
+  - event_port (TEXT) — port where document was issued (vessel was physically present)
+  - previous_port (TEXT) — where vessel came from, e.g. 'New York City', 'Philadelphia, Pa'
+                            Enables voyage reconstruction: departed previous_port → arrived event_port
+  - doc_number (TEXT) — enrollment/registration document number
+  - master (TEXT) — captain at that time, e.g. 'Nelson Ingalls', '(same as previous)'
+  - owners_text (TEXT) — full ownership string for text search
+  - owner_shares (JSONB) — parsed ownership shares (when available)
+  - notes (TEXT) — 'surrendered', 'tonnage_amended', 'trade_changed', etc.
+  - event_index (INTEGER) — sequential position within vessel record (0-based)
+  - metadata (JSONB)
+
+VIEW: vessel_voyages (convenience view for voyage reconstruction)
+  - vessel_name, departed_from, arrived_at, event_date, event_type, master, doc_number, document_id
+  - Only includes events where previous_port IS NOT NULL
+
 IMPORTANT NOTES about the data:
 - The raw_content field contains the FULL enrollment history — every time the
   vessel was enrolled, registered, or changed owners/masters, that record
   appears in raw_content. This is where voyage and ownership change data lives.
+- The vessel_events table contains STRUCTURED event data extracted from raw_content.
+  USE vessel_events for queries about ports visited, captains, voyages, and timelines.
+  USE documents for vessel construction details (tonnage, builder, dimensions, year_built).
+- 'enrolled' means domestic/coastal trade; 'registered' means foreign/international trade.
 - Ownership was fractional: shares in 1/16, 1/32, or 1/64 divisions.
 - The 'master' was the ship's captain.
-- Enrollment records contain dates and ports showing vessel movements.
 - Use raw_content with ILIKE for full-text searches of enrollment histories.
 - Use metadata JSONB for structured queries (tonnage, year_built, etc.).
+- Use vessel_events for queries about ports, captains, voyages, and chronological history.
+- Use vessel_voyages view for voyage reconstruction (departure → arrival pairs).
 
 JSONB access: metadata->>'key' for text, (metadata->>'key')::numeric for numbers.
 """
@@ -185,6 +212,51 @@ A: SELECT metadata->>'place_built' AS port,
    GROUP BY metadata->>'place_built'
    ORDER BY vessels_built DESC
    LIMIT 20
+
+Q: What ports did the schooner Alaska visit?
+A: SELECT event_port AS port, event_date, event_type, master
+   FROM vessel_events
+   WHERE vessel_name ILIKE '%Alaska%'
+   ORDER BY event_date
+
+Q: Which vessels did Nelson Ingalls captain?
+A: SELECT DISTINCT vessel_name, MIN(event_date) AS first_date, MAX(event_date) AS last_date
+   FROM vessel_events
+   WHERE master ILIKE '%Ingalls%'
+   GROUP BY vessel_name
+   ORDER BY first_date
+
+Q: Show the voyage history of A. B. Perry
+A: SELECT departed_from, arrived_at, event_date, event_type, master
+   FROM vessel_voyages
+   WHERE vessel_name ILIKE '%A. B. Perry%'
+   ORDER BY event_date
+
+Q: What vessels sailed between Machias and New York?
+A: SELECT vessel_name, departed_from, arrived_at, event_date, master
+   FROM vessel_voyages
+   WHERE (departed_from ILIKE '%New York%' AND arrived_at = 'Machias')
+      OR (departed_from = 'Machias' AND arrived_at ILIKE '%New York%')
+   ORDER BY event_date
+
+Q: How many enrolled vs registered events are there per decade?
+A: SELECT (EXTRACT(YEAR FROM event_date)::int / 10 * 10)::text || 's' AS decade,
+          SUM(CASE WHEN event_type = 'enrolled' THEN 1 ELSE 0 END) AS enrolled_count,
+          SUM(CASE WHEN event_type = 'registered' THEN 1 ELSE 0 END) AS registered_count
+   FROM vessel_events
+   WHERE event_date IS NOT NULL
+   GROUP BY EXTRACT(YEAR FROM event_date)::int / 10 * 10
+   ORDER BY EXTRACT(YEAR FROM event_date)::int / 10 * 10
+
+Q: Who were the most active captains?
+A: SELECT master, COUNT(DISTINCT vessel_name) AS vessels_captained,
+          COUNT(*) AS total_events
+   FROM vessel_events
+   WHERE master IS NOT NULL
+     AND master != '(same as previous)'
+   GROUP BY master
+   ORDER BY vessels_captained DESC
+   LIMIT 20
 """
 
 # ── System Prompt ────────────────────────────────────────────
@@ -204,9 +276,9 @@ Rules:
 3. Cast numeric JSONB values: (metadata->>'tonnage')::numeric
 4. Always LIMIT results to at most 50 rows unless the user asks for a count or aggregate.
 5. Use ILIKE for case-insensitive text matching.
-6. When looking for captain/master information, search raw_content with ILIKE '%Master: name%'.
-7. For enrollment history and voyages, return raw_content so the full record is available.
-8. Always filter by metadata->>'type' = 'ship' when querying vessel data.
+6. For captain/master queries, PREFER vessel_events table (master column) over raw_content search.
+7. For enrollment history, voyages, and port visits, PREFER vessel_events or vessel_voyages view.
+8. For vessel construction details (tonnage, builder, dimensions), use the documents table with metadata->>'type' = 'ship'.
 9. For aggregate queries (counts, averages), exclude NULL values with IS NOT NULL.
 10. Return ONLY the SQL query, no explanation, no markdown fences."""
 

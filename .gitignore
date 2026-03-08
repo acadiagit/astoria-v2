@@ -31,3 +31,9 @@ Thumbs.db
 /models/
 *.bin
 *.onnx
+MachiasShipReg/
+documentation-av2/
+*.db
+vessel_inserts.sql
+vessels_extracted.json
+vessel_events.json
