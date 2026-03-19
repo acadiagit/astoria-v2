@@ -59,6 +59,7 @@ export default function App() {
     return <AdminPage onLogout={handleLogout} />;
   }
 
+  if (!guest) {
     return <LoginPage onLogin={handleLogin} />;
   }
 
