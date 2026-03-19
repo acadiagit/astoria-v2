@@ -1,63 +1,132 @@
 """
-Astoria v2 — Data ingestion endpoints (admin only).
-
-Trigger scraping, validation, and embedding of maritime data sources.
+# File: backend/app/api/ingest.py
+# Astoria v2 — Data ingestion endpoints (admin only).
+# Handles file upload, URL ingestion, and town web scraping.
+# All config sourced from app.core.config (get_settings).
 """
 
-from fastapi import APIRouter, Depends
+import uuid
+import tempfile
+import os
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from app.middleware.auth import AuthUser, require_admin
-from app.models.schemas import IngestionTrigger, IngestionResult, IngestionStatus
+from app.models.schemas import IngestionResult, IngestionStatus
+from app.services.loader_agent import load_document
+from app.services.web_scraper import scrape_town, scrape_all_towns
+from app.core.config import get_settings
 from datetime import datetime, timezone
+import structlog
 
+logger = structlog.get_logger()
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
+ALLOWED_TOWNS = ["Blue Hill", "Sullivan", "Milbridge", "Machias"]
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx"}
 
-@router.post("/trigger", response_model=IngestionResult)
-async def trigger_ingestion(
-    request: IngestionTrigger,
+
+@router.post("/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    town: str = Form(None),
+    archive_name: str = Form(None),
     user: AuthUser = Depends(require_admin),
 ):
-    """Trigger a data ingestion run for a specific source.
+    """Upload a PDF, TXT, or DOCX file into the knowledge base."""
+    suffix = os.path.splitext(file.filename)[1].lower()
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {suffix}. Allowed: {ALLOWED_EXTENSIONS}"
+        )
 
-    Admin only. Starts the scrape → validate → chunk → embed pipeline.
-    """
-    # Phase 1 placeholder — Phase 3 connects the actual pipeline
-    return IngestionResult(
-        run_id="placeholder-run-001",
-        source_id=request.source_id,
-        status=IngestionStatus.PENDING,
-        started_at=datetime.now(timezone.utc),
-    )
+    if town and town not in ALLOWED_TOWNS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown town: {town}. Allowed: {ALLOWED_TOWNS}"
+        )
+
+    # Write upload to temp file
+    with tempfile.NamedTemporaryFile(
+        suffix=suffix,
+        delete=False
+    ) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        result = load_document(
+            source=tmp_path,
+            town=town,
+            archive_name=archive_name or "Manual Upload",
+            loaded_by=user.id,
+        )
+    finally:
+        os.unlink(tmp_path)
+
+    logger.info("upload_complete", filename=file.filename, result=result)
+    return result
 
 
-@router.get("/status/{run_id}", response_model=IngestionResult)
-async def get_ingestion_status(
-    run_id: str,
+@router.post("/url")
+async def ingest_url(
+    url: str = Form(...),
+    town: str = Form(None),
+    archive_name: str = Form(None),
     user: AuthUser = Depends(require_admin),
 ):
-    """Check the status of an ingestion run."""
-    return IngestionResult(
-        run_id=run_id,
-        source_id="unknown",
-        status=IngestionStatus.PENDING,
-        started_at=datetime.now(timezone.utc),
+    """Ingest content from a URL into the knowledge base."""
+    if not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="Invalid URL")
+
+    result = load_document(
+        source=url,
+        town=town,
+        archive_name=archive_name or "Web",
+        loaded_by=user.id,
     )
+    logger.info("url_ingest_complete", url=url, result=result)
+    return result
+
+
+@router.post("/scrape/{town}")
+async def scrape_town_endpoint(
+    town: str,
+    user: AuthUser = Depends(require_admin),
+):
+    """Scrape all known sources for a specific town."""
+    if town not in ALLOWED_TOWNS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown town: {town}. Allowed: {ALLOWED_TOWNS}"
+        )
+
+    result = scrape_town(town, loaded_by=user.id)
+    logger.info("town_scrape_complete", town=town, result=result)
+    return result
+
+
+@router.post("/scrape-all")
+async def scrape_all_endpoint(
+    user: AuthUser = Depends(require_admin),
+):
+    """Scrape all four Maine towns."""
+    result = scrape_all_towns(loaded_by=user.id)
+    logger.info("all_towns_scraped", result=result)
+    return result
 
 
 @router.get("/sources")
-async def list_available_sources(
+async def list_sources(
     user: AuthUser = Depends(require_admin),
 ):
-    """List all configured data sources and their last ingestion status."""
-    # Phase 3 will populate this from scraper configurations
-    return {
-        "sources": [
-            {
-                "id": "example-archive",
-                "name": "Example Maritime Archive",
-                "url": "https://example.com",
-                "last_run": None,
-                "status": "not_configured",
-            }
-        ]
-    }
+    """List all ingested documents."""
+    from supabase import create_client
+    settings = get_settings()
+    supabase = create_client(settings.supabase_url, settings.supabase_service_role_key)
+    result = supabase.schema(settings.db_schema).table("documents") \
+        .select("id, title, archive_name, content_type, ingested_at, metadata") \
+        .order("ingested_at", desc=True) \
+        .execute()
+    return {"documents": result.data, "total": len(result.data)}
+# end ingest.py

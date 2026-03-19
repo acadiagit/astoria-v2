@@ -1,10 +1,12 @@
 /**
- * Astoria v2 — App root with lightweight guest auth for demo.
+ * File: frontend/src/App.tsx
+ * Astoria v2 — App root with guest auth and admin route.
  */
 
 import { useState, useEffect } from "react";
 import LoginPage from "./pages/LoginPage";
 import QueryPage from "./pages/QueryPage";
+import AdminPage from "./pages/AdminPage";
 
 export interface GuestUser {
   name: string;
@@ -15,6 +17,7 @@ export interface GuestUser {
 export default function App() {
   const [guest, setGuest] = useState<GuestUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const isAdmin = window.location.pathname === "/admin";
 
   useEffect(() => {
     const stored = localStorage.getItem("astoria_guest");
@@ -51,9 +54,14 @@ export default function App() {
     );
   }
 
-  if (!guest) {
+  // Admin route — standalone, own auth
+  if (isAdmin) {
+    return <AdminPage onLogout={handleLogout} />;
+  }
+
     return <LoginPage onLogin={handleLogin} />;
   }
 
   return <QueryPage guest={guest} onLogout={handleLogout} />;
 }
+// end App.tsx

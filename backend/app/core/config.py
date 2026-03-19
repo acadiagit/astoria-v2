@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # --- Database (direct connection for SQL execution) ---
     database_url: str = ""
+    db_schema: str = "public"
 
     # --- Rate Limiting ---
     rate_limit_per_minute: int = 30
