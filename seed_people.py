@@ -17,7 +17,7 @@ import psycopg2
 import sys
 import os
 
-DB_URL = "postgresql://postgres:wMACHx0762303@db.mvxlmhxlfbdtnueysrex.supabase.co:5432/postgres"
+DB_URL = "postgresql://postgres:wMACHx0762303@db.cnkbkzfacepjgnvamlvn.supabase.co:5432/postgres"
 
 ROLES_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "person_roles.json")
 

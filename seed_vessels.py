@@ -18,7 +18,7 @@ import sys
 import os
 
 # --- Supabase connection ---
-DB_URL = "postgresql://postgres:wMACHx0762303@db.mvxlmhxlfbdtnueysrex.supabase.co:5432/postgres"
+DB_URL = "postgresql://postgres:wMACHx0762303@db.cnkbkzfacepjgnvamlvn.supabase.co:5432/postgres"
 ARCHIVE_NAME = "Machias Ship Registers 1780-1930"
 
 # Load extracted vessels

@@ -21,7 +21,7 @@ import sys
 import os
 
 # --- Supabase connection ---
-DB_URL = "postgresql://postgres:wMACHx0762303@db.mvxlmhxlfbdtnueysrex.supabase.co:5432/postgres"
+DB_URL = "postgresql://postgres:wMACHx0762303@db.cnkbkzfacepjgnvamlvn.supabase.co:5432/postgres"
 
 # Load extracted events
 EVENTS_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vessel_events.json")
