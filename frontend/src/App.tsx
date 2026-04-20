@@ -1,10 +1,13 @@
 /**
- * Astoria v2 — App root with lightweight guest auth for demo.
+ * File: frontend/src/App.tsx
+ * Astoria v2 — App root with React Router for client-side routing.
  */
 
 import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import QueryPage from "./pages/QueryPage";
+import AdminPage from "./pages/AdminPage";
 
 export interface GuestUser {
   name: string;
@@ -51,9 +54,21 @@ export default function App() {
     );
   }
 
-  if (!guest) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
-  return <QueryPage guest={guest} onLogout={handleLogout} />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/admin" element={<AdminPage onLogout={handleLogout} />} />
+        <Route
+          path="/"
+          element={
+            guest
+              ? <QueryPage guest={guest} onLogout={handleLogout} />
+              : <LoginPage onLogin={handleLogin} />
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
+// end App.tsx
